@@ -228,11 +228,53 @@ function exportCurrentWeekExcel(){
   });
   const weekTotals=calculateTotals(entries);
   rows.push(['Wochensumme','','',round2(weekTotals.minutes),round2(weekTotals.kilometers),'','','',round2(weekTotals.mealMoney),round2(weekTotals.parking),round2(weekTotals.taxi),round2(weekTotals.hotel),round2(weekTotals.other)]);
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:6},{wch:12},{wch:16},{wch:10},{wch:10},{wch:18},{wch:14},{wch:24},{wch:14},{wch:10},{wch:10},{wch:10},{wch:10}];
-  XLSX.utils.book_append_sheet(wb,ws,`KW${String(week.week).padStart(2,'0')}`);
-  XLSX.writeFile(wb,`Wochenrapport_KW${String(week.week).padStart(2,'0')}.xlsx`);
+ const wb = XLSX.utils.book_new();
+const ws = XLSX.utils.aoa_to_sheet(rows);
+
+ws['!cols'] = [
+  { wch: 6 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 10 },
+  { wch: 18 }, { wch: 14 }, { wch: 24 }, { wch: 14 }, { wch: 10 },
+  { wch: 10 }, { wch: 10 }, { wch: 10 }
+];
+
+const range = XLSX.utils.decode_range(ws['!ref']);
+
+for (let R = 0; R <= range.e.r; R++) {
+  const firstCellRef = XLSX.utils.encode_cell({ r: R, c: 0 });
+  const firstValue = ws[firstCellRef] ? ws[firstCellRef].v : "";
+
+  for (let C = 0; C <= range.e.c; C++) {
+    const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+    if (!ws[cellRef]) continue;
+
+    ws[cellRef].s = {
+      font: {
+        name: "Arial",
+        bold: (
+          R === 0 ||          // Titel
+          R === 2 ||          // Kopfzeile
+          firstValue === "Total" ||
+          firstValue === "Wochensumme"
+        )
+      },
+      alignment: {
+        vertical: "center",
+        horizontal: (C === 3 || C === 4) ? "center" : "left"
+      }
+    };
+
+    if (firstValue === "Total" || firstValue === "Wochensumme") {
+      ws[cellRef].s.fill = {
+        patternType: "solid",
+        fgColor: { rgb: "D9EAF7" }
+      };
+    }
+  }
+}
+
+XLSX.utils.book_append_sheet(wb, ws, `KW${String(week.week).padStart(2, '0')}`);
+XLSX.writeFile(wb, `Wochenrapport_KW${String(week.week).padStart(2, '0')}.xlsx`);
+
 }
 function exportBackup(){
   const payload={version:1,exportedAt:new Date().toISOString(),entries:state.entries};
