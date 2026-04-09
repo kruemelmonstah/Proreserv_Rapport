@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wochenrapport</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>Wochenrapport</h1>
+
+<div>
+<input type="date" id="date">
+<input type="text" id="supplier" placeholder="Lieferant">
+<input type="number" id="minutes" placeholder="Minuten">
+<input type="number" id="km" placeholder="KM">
+
+<h3>Spesen</h3>
+<input type="number" id="meal" placeholder="Essen">
+<input type="number" id="parking" placeholder="Parking">
+<input type="number" id="taxi" placeholder="Taxen">
+<input type="number" id="hotel" placeholder="Hotel">
+
+<button onclick="save()">Speichern</button>
+</div>
+
+<h2>Woche</h2>
+<div id="total"></div>
+<ul id="list"></ul>
+
+<script src="app.js"></script>
+</body>
+</html>
