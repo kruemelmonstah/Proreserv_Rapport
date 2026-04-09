@@ -4,15 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wochenrapport</title>
+
 <link rel="stylesheet" href="styles.css">
+
+<!-- Excel Library -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
+
 <body>
 
 <h1>Wochenrapport</h1>
 
-<div>
+<div class="card">
+
 <input type="date" id="date">
 <input type="text" id="supplier" placeholder="Lieferant">
+<input type="text" id="module" placeholder="Modul">
+<input type="text" id="market" placeholder="Markt">
+
+<input type="text" id="time" placeholder="Zeit (z.B. 8:00-12:00)">
 <input type="number" id="minutes" placeholder="Minuten">
 <input type="number" id="km" placeholder="KM">
 
@@ -21,14 +31,20 @@
 <input type="number" id="parking" placeholder="Parking">
 <input type="number" id="taxi" placeholder="Taxen">
 <input type="number" id="hotel" placeholder="Hotel">
+<input type="number" id="other" placeholder="Sonstige">
 
-<button onclick="exportExcel()">Excel Export</button>
+<button onclick="save()">Speichern</button>
+
 </div>
 
-<h2>Woche</h2>
+<h2>Aktuelle Woche</h2>
+
 <div id="total"></div>
 <ul id="list"></ul>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<button onclick="exportExcel()">Excel Export</button>
+
+<script src="app.js"></script>
+
 </body>
 </html>
