@@ -5,6 +5,7 @@ function save(){
 
 let entry = {
 date: date.value,
+day: getDayName(date.value),
 supplier: fixSupplier(supplier.value),
 module: module.value,
 market: fixMarket(market.value),
@@ -18,20 +19,13 @@ hotel: parseFloat(hotel.value || 0),
 other: parseFloat(other.value || 0)
 };
 
-// Bestätigung
 if(!confirm("Eintrag speichern?")) return;
 
 data.push(entry);
 localStorage.setItem("data", JSON.stringify(data));
 
 render();
-}
-
-// ---------------- WEEK ----------------
-function getWeek(d){
-let date = new Date(d);
-let onejan = new Date(date.getFullYear(),0,1);
-return Math.ceil((((date-onejan)/86400000)+onejan.getDay()+1)/7);
+clearForm();
 }
 
 // ---------------- RENDER ----------------
@@ -42,9 +36,9 @@ list.innerHTML = "";
 let now = new Date();
 let w = getWeek(now);
 
-let totalMin = 0;
-let totalKm = 0;
-let totalSpesen = 0;
+let totalMin=0;
+let totalKm=0;
+let totalSpesen=0;
 
 data.forEach(e => {
 
@@ -53,19 +47,43 @@ if(getWeek(e.date)==w){
 let li = document.createElement("li");
 
 li.innerText =
-`${e.date} | ${e.supplier} | ${e.minutes}min | ${e.km}km`;
+`${e.day} | ${e.date} | ${e.supplier} | ${e.minutes}min | ${e.km}km`;
 
 list.appendChild(li);
 
 totalMin += e.minutes;
 totalKm += e.km;
-totalSpesen += (e.meal+e.parking+e.taxi+e.hotel+e.other);
-
+totalSpesen += e.meal+e.parking+e.taxi+e.hotel+e.other;
 }
 });
 
 total.innerText =
-`Min: ${totalMin} | KM: ${totalKm} | Spesen: ${totalSpesen.toFixed(2)}`;
+`Woche: ${w} | Minuten: ${totalMin} | KM: ${totalKm} | Spesen: ${totalSpesen.toFixed(2)}`;
+}
+
+// ---------------- CLEAR FORM ----------------
+function clearForm(){
+time.value="";
+minutes.value="";
+km.value="";
+meal.value="";
+parking.value="";
+taxi.value="";
+hotel.value="";
+other.value="";
+}
+
+// ---------------- WEEK ----------------
+function getWeek(d){
+let date = new Date(d);
+let onejan = new Date(date.getFullYear(),0,1);
+return Math.ceil((((date-onejan)/86400000)+onejan.getDay()+1)/7);
+}
+
+// ---------------- DAY ----------------
+function getDayName(d){
+let days=["So","Mo","Di","Mi","Do","Fr","Sa"];
+return days[new Date(d).getDay()];
 }
 
 // ---------------- EXCEL ----------------
@@ -76,23 +94,23 @@ let w = getWeek(now);
 
 let filtered = data.filter(e => getWeek(e.date)==w);
 
-if(filtered.length==0){
-alert("Keine Daten");
-return;
-}
-
 let rows = [
 ["Kalenderwoche " + w],
 [],
-["Datum","Zeit","Minuten","KM","Lieferant","Modul","Markt","Essen","Parking","Taxen","Hotel","Sonstige"]
+["Tag","Datum","Zeit","Min","KM","Lieferant","Modul","Markt","Essen","Parking","Taxen","Hotel","Sonstige"]
 ];
 
 let totalMin=0;
 let totalKm=0;
+let totalSpesen=0;
+
+// nach Datum sortieren
+filtered.sort((a,b)=>a.date.localeCompare(b.date));
 
 filtered.forEach(e=>{
 
 rows.push([
+e.day,
 e.date,
 e.time,
 e.minutes,
@@ -107,33 +125,24 @@ e.hotel,
 e.other
 ]);
 
-totalMin += e.minutes;
-totalKm += e.km;
-
+totalMin+=e.minutes;
+totalKm+=e.km;
+totalSpesen+=e.meal+e.parking+e.taxi+e.hotel+e.other;
 });
 
-rows.push(["TOTAL","",totalMin,totalKm]);
+rows.push(["TOTAL","","",totalMin,totalKm,"","","",totalSpesen]);
 
 let wb = XLSX.utils.book_new();
 let ws = XLSX.utils.aoa_to_sheet(rows);
 
-ws['!cols'] = [
-{wch:12},{wch:15},{wch:10},{wch:10},
-{wch:20},{wch:15},{wch:20},
-{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}
-];
-
 XLSX.utils.book_append_sheet(wb, ws, "KW"+w);
-
 XLSX.writeFile(wb, "Rapport_KW"+w+".xlsx");
 }
 
 // ---------------- AUTO FIX ----------------
 function fixSupplier(s){
-
 if(!s) return "";
-
-s = s.toLowerCase();
+s=s.toLowerCase();
 
 if(s.includes("bahar")||s.includes("bag")) return "Bahag";
 if(s.includes("sido")) return "Facido";
@@ -144,10 +153,8 @@ return s;
 }
 
 function fixMarket(m){
-
 if(!m) return "";
-
-m = m.toLowerCase();
+m=m.toLowerCase();
 
 if(m.includes("jambo")) return "Jumbo";
 if(m.includes("irma")) return "Ermatingen";
