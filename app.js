@@ -439,14 +439,34 @@ async function exportCurrentWeekExcel() {
       rowPointer++;
     }
 
-    const infoLines = group.entries.map(x => x.infoText).filter(Boolean);
-    if (infoLines.length) {
-      ws.mergeCells(`A${rowPointer}:N${rowPointer}`);
-      const c = ws.getCell(`A${rowPointer}`);
-      c.value = infoLines.join(' | ');
-      c.font = { name: 'Arial' };
-      rowPointer++;
-    }
+const infoLines = group.entries.map(x => x.infoText).filter(Boolean);
+if (infoLines.length) {
+  ws.mergeCells(`A${rowPointer}:N${rowPointer}`);
+  const c = ws.getCell(`A${rowPointer}`);
+
+  c.value = infoLines.join(' | ');
+  c.font = {
+    name: 'Arial',
+    size: 15,
+    color: { argb: 'FF8B0000' } // dunkelrot
+  };
+
+  c.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8CACA' } // hellrot als Feldfarbe
+  };
+
+  c.alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+    wrapText: true
+  };
+
+  c.border = thinBorder('FFBFC9D4');
+
+  rowPointer++;
+}
 
     rowPointer++;
   });
