@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'proreserv_rapport_v4';
+const STORAGE_KEY = 'proreserv_rapport_v5';
 
 const state = {
   entries: loadEntries(),
@@ -11,10 +11,11 @@ const el = {
   editId: document.getElementById('editId'),
   date: document.getElementById('date'),
   timeRange: document.getElementById('timeRange'),
+  breakMinutes: document.getElementById('breakMinutes'),
+  minutes: document.getElementById('minutes'),
   supplier: document.getElementById('supplier'),
   module: document.getElementById('module'),
   market: document.getElementById('market'),
-  minutes: document.getElementById('minutes'),
   kilometers: document.getElementById('kilometers'),
   breakfast: document.getElementById('breakfast'),
   lunch: document.getElementById('lunch'),
@@ -55,21 +56,19 @@ function init() {
 function bindEvents() {
   el.form.addEventListener('submit', onSave);
   el.resetBtn.addEventListener('click', resetForm);
-  el.prevWeekBtn.addEventListener('click', () => {
-    state.selectedDate = addDays(state.selectedDate, -7);
-    render();
-  });
-  el.currentWeekBtn.addEventListener('click', () => {
-    state.selectedDate = new Date();
-    render();
-  });
-  el.nextWeekBtn.addEventListener('click', () => {
-    state.selectedDate = addDays(state.selectedDate, 7);
-    render();
-  });
+  el.prevWeekBtn.addEventListener('click', () => { state.selectedDate = addDays(state.selectedDate, -7); render(); });
+  el.currentWeekBtn.addEventListener('click', () => { state.selectedDate = new Date(); render(); });
+  el.nextWeekBtn.addEventListener('click', () => { state.selectedDate = addDays(state.selectedDate, 7); render(); });
   el.exportBtn.addEventListener('click', exportCurrentWeekExcel);
   el.backupBtn.addEventListener('click', exportBackup);
   el.restoreInput.addEventListener('change', importBackup);
+  el.timeRange.addEventListener('input', updateCalculatedMinutes);
+  el.breakMinutes.addEventListener('input', updateCalculatedMinutes);
+}
+
+function updateCalculatedMinutes() {
+  const minutes = calculateMinutesFromTimeRange(el.timeRange.value, el.breakMinutes.value);
+  el.minutes.value = minutes === null ? '' : String(minutes);
 }
 
 function onSave(event) {
@@ -77,11 +76,16 @@ function onSave(event) {
 
   const normalizedSupplier = normalizeSupplier(el.supplier.value.trim());
   const normalizedMarket = normalizeMarket(el.market.value.trim());
-  const minutes = numberValue(el.minutes.value);
   const date = el.date.value;
+  const minutes = calculateMinutesFromTimeRange(el.timeRange.value, el.breakMinutes.value);
 
   if (!date || !normalizedSupplier || !el.timeRange.value.trim()) {
     alert('Bitte Datum, Zeit und Lieferant ausfüllen.');
+    return;
+  }
+
+  if (minutes === null) {
+    alert('Bitte eine gültige Uhrzeit eingeben, z. B. 08:00-10:55.');
     return;
   }
 
@@ -94,7 +98,8 @@ function onSave(event) {
     id: el.editId.value || makeId(),
     date,
     day: dayCodeFromDate(date),
-    timeRange: el.timeRange.value.trim(),
+    timeRange: normalizeTimeRangeDisplay(el.timeRange.value.trim()),
+    breakMinutes: numberValue(el.breakMinutes.value),
     minutes,
     kilometers: numberValue(el.kilometers.value),
     supplier: normalizedSupplier,
@@ -112,7 +117,7 @@ function onSave(event) {
   };
 
   const confirmationText =
-    `${entry.day}, ${formatDateCH(entry.date)} – ${entry.timeRange} (${formatMoney(entry.minutes)} Min), ` +
+    `${entry.day}, ${formatDateCH(entry.date)} – ${entry.timeRange} (${formatMoney(entry.minutes)} Min, Pause ${formatMoney(entry.breakMinutes)}), ` +
     `${formatMoney(entry.kilometers)} km, ${entry.supplier}, ${entry.market || '-'}`;
 
   const confirmed = confirm(`Eintrag speichern?\n\n${confirmationText}`);
@@ -135,14 +140,14 @@ function resetForm() {
   el.formTitle.textContent = 'Eintrag erfassen';
   el.saveBtn.textContent = 'Eintrag speichern';
   el.editId.value = '';
-
   const today = todayLocalISO();
   el.date.value = today;
   el.timeRange.value = '';
+  el.breakMinutes.value = '0';
+  el.minutes.value = '';
   el.supplier.value = '';
   el.module.value = '';
   el.market.value = '';
-  el.minutes.value = '';
   el.kilometers.value = '';
   el.breakfast.value = '0.00';
   el.lunch.value = '0.00';
@@ -178,13 +183,8 @@ function renderSuggestions() {
   const suppliers = uniqueValues(state.entries.map(x => x.supplier));
   const markets = uniqueValues(state.entries.map(x => x.market));
 
-  el.supplierList.innerHTML = suppliers
-    .map(v => `<option value="${escapeAttr(v)}"></option>`)
-    .join('');
-
-  el.marketList.innerHTML = markets
-    .map(v => `<option value="${escapeAttr(v)}"></option>`)
-    .join('');
+  el.supplierList.innerHTML = suppliers.map(v => `<option value="${escapeAttr(v)}"></option>`).join('');
+  el.marketList.innerHTML = markets.map(v => `<option value="${escapeAttr(v)}"></option>`).join('');
 }
 
 function renderWeek(grouped) {
@@ -219,6 +219,7 @@ function renderWeek(grouped) {
               <th>Tag</th>
               <th>Datum</th>
               <th>Zeit</th>
+              <th>Pause</th>
               <th>Minuten</th>
               <th>Kilometer</th>
               <th>Lieferant</th>
@@ -238,6 +239,7 @@ function renderWeek(grouped) {
                 <td>${escapeHtml(entry.day)}</td>
                 <td>${escapeHtml(formatDateCH(entry.date))}</td>
                 <td>${escapeHtml(entry.timeRange)}</td>
+                <td style="text-align:center;">${formatMoney(entry.breakMinutes || 0)}</td>
                 <td style="text-align:center;">${formatMoney(entry.minutes)}</td>
                 <td style="text-align:center;">${formatMoney(entry.kilometers)}</td>
                 <td>${escapeHtml(entry.supplier)}</td>
@@ -255,20 +257,12 @@ function renderWeek(grouped) {
                   </div>
                 </td>
               </tr>
-              ${entry.routeText ? `
-                <tr class="detail-row">
-                  <td colspan="14"><strong>Fahrtroute:</strong> ${escapeHtml(entry.routeText)}</td>
-                </tr>
-              ` : ''}
-              ${entry.infoText ? `
-                <tr class="detail-row">
-                  <td colspan="14"><strong>Info:</strong> ${escapeHtml(entry.infoText)}</td>
-                </tr>
-              ` : ''}
+              ${entry.routeText ? `<tr class="detail-row"><td colspan="15"><strong>Fahrtroute:</strong> ${escapeHtml(entry.routeText)}</td></tr>` : ''}
+              ${entry.infoText ? `<tr class="detail-row"><td colspan="15"><strong>Info:</strong> ${escapeHtml(entry.infoText)}</td></tr>` : ''}
             `).join('')}
 
             <tr class="total-row">
-              <td colspan="3">Total</td>
+              <td colspan="4">Total</td>
               <td style="text-align:center;">${formatMoney(dayTotals.minutes)}</td>
               <td style="text-align:center;">${formatMoney(dayTotals.kilometers)}</td>
               <td colspan="3"></td>
@@ -287,13 +281,8 @@ function renderWeek(grouped) {
     el.weekContainer.appendChild(card);
   });
 
-  el.weekContainer.querySelectorAll('[data-edit]').forEach(btn => {
-    btn.addEventListener('click', () => editEntry(btn.dataset.edit));
-  });
-
-  el.weekContainer.querySelectorAll('[data-delete]').forEach(btn => {
-    btn.addEventListener('click', () => deleteEntry(btn.dataset.delete));
-  });
+  el.weekContainer.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => editEntry(btn.dataset.edit)));
+  el.weekContainer.querySelectorAll('[data-delete]').forEach(btn => btn.addEventListener('click', () => deleteEntry(btn.dataset.delete)));
 }
 
 function editEntry(id) {
@@ -305,11 +294,12 @@ function editEntry(id) {
 
   el.editId.value = entry.id;
   el.date.value = entry.date;
-  el.timeRange.value = entry.timeRange;
+  el.timeRange.value = entry.timeRange.replace('–', '-');
+  el.breakMinutes.value = String(round2(entry.breakMinutes || 0));
+  el.minutes.value = formatMoney(entry.minutes);
   el.supplier.value = entry.supplier;
   el.module.value = entry.module;
   el.market.value = entry.market;
-  el.minutes.value = formatMoney(entry.minutes);
   el.kilometers.value = formatMoney(entry.kilometers);
   el.breakfast.value = formatMoney(entry.breakfast);
   el.lunch.value = formatMoney(entry.lunch);
@@ -321,6 +311,7 @@ function editEntry(id) {
   el.routeText.value = entry.routeText;
   el.infoText.value = entry.infoText;
 
+  updateCalculatedMinutes();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -347,15 +338,15 @@ async function exportCurrentWeekExcel() {
 
   const grouped = groupByDate(entries);
   const weekTotals = calculateTotals(entries);
-
   const workbook = new ExcelJS.Workbook();
   const sheetName = `KW${String(week.week).padStart(2, '0')}`;
   const ws = workbook.addWorksheet(sheetName);
 
   ws.columns = [
-    { header: 'Tag', key: 'day', width: 6 },
+    { header: 'Tag', key: 'day', width: 16 },
     { header: 'Datum', key: 'date', width: 12 },
     { header: 'Zeit', key: 'timeRange', width: 16 },
+    { header: 'Pause', key: 'breakMinutes', width: 10 },
     { header: 'Minuten', key: 'minutes', width: 10 },
     { header: 'Kilometer', key: 'kilometers', width: 10 },
     { header: 'Lieferant', key: 'supplier', width: 18 },
@@ -368,26 +359,21 @@ async function exportCurrentWeekExcel() {
     { header: 'Sonstige', key: 'other', width: 10 }
   ];
 
-  ws.mergeCells('A1:M1');
+  ws.mergeCells('A1:N1');
   ws.getCell('A1').value = `Kalenderwoche ${String(week.week).padStart(2, '0')}`;
   ws.getCell('A1').font = { name: 'Arial', bold: true, size: 14 };
   ws.getCell('A1').alignment = { horizontal: 'left', vertical: 'middle' };
 
   const headerRow = ws.getRow(3);
   headerRow.values = [
-    'Tag', 'Datum', 'Zeit', 'Minuten', 'Kilometer', 'Lieferant', 'Modul',
+    'Tag', 'Datum', 'Zeit', 'Pause', 'Minuten', 'Kilometer', 'Lieferant', 'Modul',
     'Markt', 'Spesen (Essen)', 'Parking', 'Taxen', 'Hotel', 'Sonstige'
   ];
 
   headerRow.eachCell((cell) => {
     cell.font = { name: 'Arial', bold: true };
     cell.alignment = { vertical: 'middle', horizontal: 'left' };
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-      left: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-      bottom: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-      right: { style: 'thin', color: { argb: 'FFBFC9D4' } }
-    };
+    cell.border = thinBorder('FFBFC9D4');
   });
 
   let rowPointer = 4;
@@ -399,6 +385,7 @@ async function exportCurrentWeekExcel() {
         entry.day,
         formatDateCH(entry.date),
         entry.timeRange,
+        round2(entry.breakMinutes || 0),
         round2(entry.minutes),
         idx === 0 ? round2(entry.kilometers) : '',
         entry.supplier,
@@ -413,17 +400,12 @@ async function exportCurrentWeekExcel() {
 
       row.eachCell((cell, colNumber) => {
         cell.font = { name: 'Arial' };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFD8E0EA' } },
-          left: { style: 'thin', color: { argb: 'FFD8E0EA' } },
-          bottom: { style: 'thin', color: { argb: 'FFD8E0EA' } },
-          right: { style: 'thin', color: { argb: 'FFD8E0EA' } }
-        };
+        cell.border = thinBorder('FFD8E0EA');
         cell.alignment = {
           vertical: 'middle',
-          horizontal: (colNumber === 4 || colNumber === 5) ? 'center' : 'left'
+          horizontal: [4, 5, 6].includes(colNumber) ? 'center' : 'left'
         };
-        if ([4, 5, 9, 10, 11, 12, 13].includes(colNumber) && cell.value !== '') {
+        if ([4, 5, 6, 10, 11, 12, 13, 14].includes(colNumber) && cell.value !== '') {
           cell.numFmt = '0.00';
         }
       });
@@ -434,7 +416,7 @@ async function exportCurrentWeekExcel() {
     const totals = calculateTotals(group.entries);
     const totalRow = ws.getRow(rowPointer);
     totalRow.values = [
-      'Total', '', '',
+      'Total', '', '', '',
       round2(totals.minutes),
       round2(totals.kilometers),
       '', '', '',
@@ -445,54 +427,53 @@ async function exportCurrentWeekExcel() {
       round2(totals.other)
     ];
 
-    totalRow.eachCell((cell, colNumber) => {
-      cell.font = { name: 'Arial', bold: true };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFD9EAF7' }
-      };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-        left: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-        bottom: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-        right: { style: 'thin', color: { argb: 'FFBFC9D4' } }
-      };
-      cell.alignment = {
-        vertical: 'middle',
-        horizontal: (colNumber === 4 || colNumber === 5) ? 'center' : 'left'
-      };
-      if ([4, 5, 9, 10, 11, 12, 13].includes(colNumber) && cell.value !== '') {
-        cell.numFmt = '0.00';
-      }
-    });
-
+    styleTotalRow(totalRow);
     rowPointer++;
 
     const route = group.entries.find(x => x.routeText)?.routeText || '';
     if (route) {
-      ws.mergeCells(`A${rowPointer}:M${rowPointer}`);
+      ws.mergeCells(`A${rowPointer}:N${rowPointer}`);
       const c = ws.getCell(`A${rowPointer}`);
       c.value = `Kilometer ${group.dayCode}: ${route}`;
       c.font = { name: 'Arial' };
       rowPointer++;
     }
 
-    const infoLines = group.entries.map(x => x.infoText).filter(Boolean);
-    if (infoLines.length) {
-      ws.mergeCells(`A${rowPointer}:M${rowPointer}`);
-      const c = ws.getCell(`A${rowPointer}`);
-      c.value = infoLines.join(' | ');
-      c.font = { name: 'Arial' };
-      rowPointer++;
-    }
+const infoLines = group.entries.map(x => x.infoText).filter(Boolean);
+if (infoLines.length) {
+  ws.mergeCells(`A${rowPointer}:N${rowPointer}`);
+  const c = ws.getCell(`A${rowPointer}`);
+
+  c.value = infoLines.join(' | ');
+  c.font = {
+    name: 'Arial',
+    size: 15,
+    color: { argb: 'FF8B0000' } // dunkelrot
+  };
+
+  c.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFF8CACA' } // hellrot als Feldfarbe
+  };
+
+  c.alignment = {
+    vertical: 'middle',
+    horizontal: 'left',
+    wrapText: true
+  };
+
+  c.border = thinBorder('FFBFC9D4');
+
+  rowPointer++;
+}
 
     rowPointer++;
   });
 
   const weeklyRow = ws.getRow(rowPointer);
   weeklyRow.values = [
-    'Wochensumme', '', '',
+    'Wochensumme', '', '', '',
     round2(weekTotals.minutes),
     round2(weekTotals.kilometers),
     '', '', '',
@@ -503,47 +484,37 @@ async function exportCurrentWeekExcel() {
     round2(weekTotals.other)
   ];
 
-  weeklyRow.eachCell((cell, colNumber) => {
-    cell.font = { name: 'Arial', bold: true };
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFD9EAF7' }
-    };
-    cell.border = {
-      top: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-      left: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-      bottom: { style: 'thin', color: { argb: 'FFBFC9D4' } },
-      right: { style: 'thin', color: { argb: 'FFBFC9D4' } }
-    };
-    cell.alignment = {
-      vertical: 'middle',
-      horizontal: (colNumber === 4 || colNumber === 5) ? 'center' : 'left'
-    };
-    if ([4, 5, 9, 10, 11, 12, 13].includes(colNumber) && cell.value !== '') {
-      cell.numFmt = '0.00';
-    }
-  });
+  styleTotalRow(weeklyRow);
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob(
-    [buffer],
-    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
-  );
-
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   downloadBlob(blob, `Wochenrapport_KW${String(week.week).padStart(2, '0')}.xlsx`);
+
+  function styleTotalRow(row) {
+    row.eachCell((cell, colNumber) => {
+      cell.font = { name: 'Arial', bold: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAF7' } };
+      cell.border = thinBorder('FFBFC9D4');
+      cell.alignment = { vertical: 'middle', horizontal: [5, 6].includes(colNumber) ? 'center' : 'left' };
+      if ([5, 6, 10, 11, 12, 13, 14].includes(colNumber) && cell.value !== '') {
+        cell.numFmt = '0.00';
+      }
+    });
+  }
+}
+
+function thinBorder(argb) {
+  return {
+    top: { style: 'thin', color: { argb } },
+    left: { style: 'thin', color: { argb } },
+    bottom: { style: 'thin', color: { argb } },
+    right: { style: 'thin', color: { argb } }
+  };
 }
 
 function exportBackup() {
-  const payload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    entries: state.entries
-  };
-
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: 'application/json'
-  });
+  const payload = { version: 1, exportedAt: new Date().toISOString(), entries: state.entries };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   downloadBlob(blob, 'rapport-backup.json');
 }
 
@@ -554,11 +525,7 @@ async function importBackup(event) {
   try {
     const text = await file.text();
     const payload = JSON.parse(text);
-
-    if (!payload.entries || !Array.isArray(payload.entries)) {
-      throw new Error('Ungültiges Backup');
-    }
-
+    if (!payload.entries || !Array.isArray(payload.entries)) throw new Error('Ungültiges Backup');
     state.entries = payload.entries;
     saveEntries();
     render();
@@ -570,6 +537,37 @@ async function importBackup(event) {
   }
 }
 
+function calculateMinutesFromTimeRange(rawTimeRange, rawBreakMinutes) {
+  const text = String(rawTimeRange || '').trim();
+  if (!text) return null;
+
+  const normalized = text.replace(/[–—]/g, '-').replace(/\s+/g, '');
+  const parts = normalized.split('-');
+  if (parts.length !== 2) return null;
+
+  const start = parseTimeToMinutes(parts[0]);
+  const end = parseTimeToMinutes(parts[1]);
+  if (start === null || end === null) return null;
+
+  const breakMinutes = Math.max(0, numberValue(rawBreakMinutes));
+  const diff = end - start - breakMinutes;
+  if (diff < 0) return null;
+  return diff;
+}
+
+function parseTimeToMinutes(value) {
+  const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function normalizeTimeRangeDisplay(raw) {
+  return String(raw || '').trim().replace(/[–—]/g, '-').replace(/\s*-\s*/g, '–');
+}
+
 function getEntriesForWeek(year, week) {
   return state.entries.filter(entry => {
     const info = getIsoWeekInfo(new Date(`${entry.date}T12:00:00`));
@@ -579,18 +577,12 @@ function getEntriesForWeek(year, week) {
 
 function groupByDate(entries) {
   const map = new Map();
-
   entries.forEach(entry => {
     if (!map.has(entry.date)) {
-      map.set(entry.date, {
-        date: entry.date,
-        dayCode: entry.day,
-        entries: []
-      });
+      map.set(entry.date, { date: entry.date, dayCode: entry.day, entries: [] });
     }
     map.get(entry.date).entries.push(entry);
   });
-
   return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -705,15 +697,11 @@ function formatMoney(value) {
 }
 
 function titleCase(text) {
-  return text.replace(/\w\S*/g, word =>
-    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  );
+  return text.replace(/\w\S*/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
 }
 
 function makeId() {
-  return crypto.randomUUID
-    ? crypto.randomUUID()
-    : `id_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return crypto.randomUUID ? crypto.randomUUID() : `id_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
 function downloadBlob(blob, filename) {
@@ -726,9 +714,7 @@ function downloadBlob(blob, filename) {
 }
 
 function uniqueValues(values) {
-  return [...new Set(
-    values.map(v => String(v || '').trim()).filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b));
+  return [...new Set(values.map(v => String(v || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 function escapeHtml(value) {
