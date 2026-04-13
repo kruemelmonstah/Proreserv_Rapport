@@ -343,7 +343,7 @@ async function exportCurrentWeekExcel() {
   const ws = workbook.addWorksheet(sheetName);
 
   ws.columns = [
-    { header: 'Tag', key: 'day', width: 6 },
+    { header: 'Tag', key: 'day', width: 16 },
     { header: 'Datum', key: 'date', width: 12 },
     { header: 'Zeit', key: 'timeRange', width: 16 },
     { header: 'Pause', key: 'breakMinutes', width: 10 },
