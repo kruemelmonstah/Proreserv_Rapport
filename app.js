@@ -370,11 +370,11 @@ async function exportCurrentWeekExcel() {
     'Markt', 'Spesen (Essen)', 'Parking', 'Taxen', 'Hotel', 'Sonstige'
   ];
 
-  headerRow.eachCell((cell) => {
-    cell.font = { name: 'Arial', bold: true };
-    cell.alignment = { vertical: 'middle', horizontal: 'left' };
-    cell.border = thinBorder('FFBFC9D4');
-  });
+headerRow.eachCell((cell) => {
+  cell.font = { name: 'Arial', bold: true };
+  cell.alignment = { vertical: 'middle', horizontal: 'left' };
+  cell.border = mediumBorder('FF7A8A99');
+});
 
   let rowPointer = 4;
 
@@ -471,18 +471,42 @@ if (infoLines.length) {
     rowPointer++;
   });
 
-  const weeklyRow = ws.getRow(rowPointer);
-  weeklyRow.values = [
-    'Wochensumme', '', '', '',
-    round2(weekTotals.minutes),
-    round2(weekTotals.kilometers),
-    '', '', '',
-    round2(weekTotals.mealMoney),
-    round2(weekTotals.parking),
-    round2(weekTotals.taxi),
-    round2(weekTotals.hotel),
-    round2(weekTotals.other)
-  ];
+const weeklyRow = ws.getRow(rowPointer);
+weeklyRow.values = [
+  'Wochensumme', '', '', '',
+  round2(weekTotals.minutes),
+  round2(weekTotals.kilometers),
+  '', '', '',
+  round2(weekTotals.mealMoney),
+  round2(weekTotals.parking),
+  round2(weekTotals.taxi),
+  round2(weekTotals.hotel),
+  round2(weekTotals.other)
+];
+
+weeklyRow.eachCell((cell, colNumber) => {
+  cell.font = {
+    name: 'Arial',
+    bold: true
+  };
+
+  cell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFD9EAF7' }
+  };
+
+  cell.border = weeklyUnderlineBorder('FF7A8A99');
+
+  cell.alignment = {
+    vertical: 'middle',
+    horizontal: [5, 6].includes(colNumber) ? 'center' : 'left'
+  };
+
+  if ([5, 6, 10, 11, 12, 13, 14].includes(colNumber) && cell.value !== '') {
+    cell.numFmt = '0.00';
+  }
+});
 
   styleTotalRow(weeklyRow);
 
@@ -494,7 +518,7 @@ if (infoLines.length) {
     row.eachCell((cell, colNumber) => {
       cell.font = { name: 'Arial', bold: true };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9EAF7' } };
-      cell.border = thinBorder('FFBFC9D4');
+cell.border = mediumBorder('FF7A8A99');
       cell.alignment = { vertical: 'middle', horizontal: [5, 6].includes(colNumber) ? 'center' : 'left' };
       if ([5, 6, 10, 11, 12, 13, 14].includes(colNumber) && cell.value !== '') {
         cell.numFmt = '0.00';
@@ -511,6 +535,30 @@ function thinBorder(argb) {
     right: { style: 'thin', color: { argb } }
   };
 }
+
+function mediumBorder(argb) {
+  return {
+    top: { style: 'medium', color: { argb } },
+    left: { style: 'medium', color: { argb } },
+    bottom: { style: 'medium', color: { argb } },
+    right: { style: 'medium', color: { argb } }
+  };
+}
+
+function weeklyUnderlineBorder(argb) {
+  return {
+    top: { style: 'medium', color: { argb } },
+    left: { style: 'thin', color: { argb } },
+    right: { style: 'thin', color: { argb } },
+    bottom: { style: 'double', color: { argb } }
+  };
+}
+
+
+
+
+
+
 
 function exportBackup() {
   const payload = { version: 1, exportedAt: new Date().toISOString(), entries: state.entries };
